@@ -8,6 +8,8 @@ on:
 jobs:
   extract-php-versions:
     runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.filter-versions.outputs.versions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,6 +35,7 @@ jobs:
           cat all_php_versions.txt
 
       - name: Filter out versions with existing tags
+        id: filter-versions
         run: |
           echo "Fetching existing tags..."
           git fetch --tags
@@ -51,3 +54,33 @@ jobs:
 
           echo "Filtered PHP versions (new only):"
           cat php_versions.txt
+
+          # Skip if no new versions found
+          if [ ! -s php_versions.txt ]; then
+            echo "No new PHP versions found to release."
+            echo "versions=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Convert to JSON array for matrix strategy
+          if [ -s php_versions.txt ]; then
+            versions=$(jq -R -s -c 'split("\n") | map(select(length > 0))' php_versions.txt)
+            echo "versions=$versions" >> $GITHUB_OUTPUT
+          fi
+
+  dispatch-releases:
+    needs: extract-php-versions
+    runs-on: ubuntu-latest
+    if: needs.extract-php-versions.outputs.versions != '[]'
+    strategy:
+      matrix:
+        version: ${{ fromJSON(needs.extract-php-versions.outputs.versions) }}
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Dispatch release workflow for PHP ${{ matrix.version }}
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: php-release.yml
+          inputs: '{ "version": "${{ matrix.version }}" }'
