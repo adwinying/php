@@ -1,0 +1,105 @@
+name: Create PHP Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'PHP version to release (e.g., 8.1.33)'
+        required: true
+        type: string
+
+jobs:
+  create-php-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check if tag already exists
+        run: |
+          VERSION="${{ inputs.version }}"
+          TAG="v$VERSION"
+
+          echo "Checking if tag $TAG already exists..."
+          git fetch --tags
+
+          if git tag --list | grep -q "^$TAG$"; then
+            echo "Error: Tag $TAG already exists"
+            exit 1
+          else
+            echo "Tag $TAG does not exist. Proceeding with release creation."
+          fi
+
+      - name: Fetch PHP CLI tarballs for version ${{ inputs.version }}
+        run: |
+          VERSION="${{ inputs.version }}"
+          echo "Fetching tarballs for PHP version: $VERSION"
+
+          # Create directory for downloads
+          mkdir -p downloads
+
+          # Fetch the directory listing and find matching tarballs
+          curl -s https://dl.static-php.dev/static-php-cli/bulk/ | \
+            grep -oP "href='\K[^']*" | \
+            grep -E "php-${VERSION}-cli-(.+)\.tar\.gz" >> matching_filepaths.txt
+
+          curl -s https://dl.static-php.dev/static-php-cli/windows/spc-max/ | \
+            grep -oP "href='\K[^']*" | \
+            grep -E "php-${VERSION}-cli-(.+)\.zip" >> matching_filepaths.txt
+
+          # exit if matching_filepaths.txt is empty
+          if [ ! -s matching_filepaths.txt ]; then
+            echo "Error: No matching file paths found"
+            exit 1
+          fi
+
+          echo "Found matching file paths:"
+          cat matching_filepaths.txt
+
+          # Download and rename each file
+          while read -r filepath; do
+            filename=$(basename "$filepath")
+            echo "Downloading: $filename"
+            curl -L -o "downloads/$filename" "https://dl.static-php.dev/$filepath"
+
+            # Extract architecture and file extension for both .tar.gz and .zip files
+            if [[ "$filename" =~ php-${VERSION}-cli-(.+)\.tar\.gz$ ]]; then
+              arch="${BASH_REMATCH[1]}"
+              fileext="tar.gz"
+            elif [[ "$filename" =~ php-${VERSION}-cli-(.+)\.zip$ ]]; then
+              arch="${BASH_REMATCH[1]}"
+              fileext="zip"
+            else
+              echo "Error: Could not extract arch/file extension from $filename"
+              exit 1
+            fi
+
+            # Rename file to new format
+            new_filename="php-${VERSION}-${arch}.${fileext}"
+            mv "downloads/$filename" "downloads/$new_filename"
+            echo "Renamed to: $new_filename"
+          done < matching_filepaths.txt
+
+          echo "Final files in downloads directory:"
+          ls -la downloads/
+
+      - name: Extract major version
+        run: |
+          echo "VERSION_MAJOR=$(echo ${{ github.event.inputs.version }} | cut -d'.' -f1,1)" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.version }}"
+          make_latest: true
+          files: downloads/**
+          body: |
+            # PHP v${{ github.event.inputs.version }}
+
+            Changelog: [What's changed in v${{ inputs.version }}?](https://www.php.net/ChangeLog-${{ env.VERSION_MAJOR }}.php#${{ inputs.version }})
+
+            Sources:
+              * https://dl.static-php.dev/static-php-cli/bulk/
+              * https://dl.static-php.dev/static-php-cli/windows/spc-max/
