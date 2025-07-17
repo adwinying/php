@@ -41,11 +41,11 @@ jobs:
           mkdir -p downloads
 
           # Fetch the directory listing and find matching tarballs
-          curl -s https://dl.static-php.dev/static-php-cli/bulk/ | \
+          curl -sS https://dl.static-php.dev/static-php-cli/bulk/ | \
             grep -oP "href='\K[^']*" | \
             grep -E "php-${VERSION}-cli-(.+)\.tar\.gz" >> matching_filepaths.txt
 
-          curl -s https://dl.static-php.dev/static-php-cli/windows/spc-max/ | \
+          curl -sS https://dl.static-php.dev/static-php-cli/windows/spc-max/ | \
             grep -oP "href='\K[^']*" | \
             grep -E "php-${VERSION}-cli-(.+)\.zip" >> matching_filepaths.txt
 

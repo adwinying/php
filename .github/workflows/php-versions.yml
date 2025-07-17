@@ -19,7 +19,7 @@ jobs:
           echo "Fetching tarball list from static-php.dev..."
 
           # Fetch the directory listing
-          curl -s https://dl.static-php.dev/static-php-cli/bulk/ | \
+          curl -sS https://dl.static-php.dev/static-php-cli/bulk/ | \
           # Extract hrefs from anchor tags
           grep -oP "href='\K[^']*" | \
           # Filter for PHP CLI tarball pattern
