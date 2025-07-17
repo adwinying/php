@@ -1,0 +1,53 @@
+name: Fetch PHP Versions
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  extract-php-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch and process PHP CLI tarballs
+        run: |
+          echo "Fetching tarball list from static-php.dev..."
+
+          # Fetch the directory listing
+          curl -s https://dl.static-php.dev/static-php-cli/bulk/ | \
+          # Extract hrefs from anchor tags
+          grep -oP "href='\K[^']*" | \
+          # Filter for PHP CLI tarball pattern
+          grep -E 'php-([0-9]+\.[0-9]+\.[0-9]+)-cli-(.+)\.tar\.gz' | \
+          # Extract version numbers using sed
+          sed -E 's/.+php-([0-9]+\.[0-9]+\.[0-9]+)-cli-.*\.tar\.gz/\1/' | \
+          # Sort unique versions and remove duplicates
+          sort -u | \
+          # Sort in descending order using version sort
+          sort -V -r > all_php_versions.txt
+
+          echo "Found PHP versions:"
+          cat all_php_versions.txt
+
+      - name: Filter out versions with existing tags
+        run: |
+          echo "Fetching existing tags..."
+          git fetch --tags
+
+          echo "Filtering out versions that already have tags..."
+          > php_versions.txt
+
+          while read -r version; do
+          if ! git tag --list | grep -q "^v${version}$"; then
+            echo "New version found: $version"
+            echo "$version" >> php_versions.txt
+            else
+            echo "Version $version already has a tag, skipping"
+          fi
+          done < all_php_versions.txt
+
+          echo "Filtered PHP versions (new only):"
+          cat php_versions.txt
