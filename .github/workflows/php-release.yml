@@ -17,21 +17,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check if tag already exists
-        run: |
-          VERSION="${{ inputs.version }}"
-          TAG="v$VERSION"
-
-          echo "Checking if tag $TAG already exists..."
-          git fetch --tags
-
-          if git tag --list | grep -q "^$TAG$"; then
-            echo "Error: Tag $TAG already exists"
-            exit 1
-          else
-            echo "Tag $TAG does not exist. Proceeding with release creation."
-          fi
-
       - name: Fetch PHP CLI tarballs for version ${{ inputs.version }}
         run: |
           VERSION="${{ inputs.version }}"
@@ -93,7 +78,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v${{ inputs.version }}"
-          make_latest: true
+          draft: false
+          overwrite_files: true
           files: downloads/**
           body: |
             # PHP v${{ github.event.inputs.version }}
