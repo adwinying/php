@@ -1,6 +1,6 @@
 # php
 
-Fetches PHP binaries from [crazywhalecc/static-php-cli](https://github.com/crazywhalecc/static-php-cli) and organize into Github Releases. No fumbling with dependencies, no builds required.
+Fetches PHP binaries from [crazywhalecc/static-php-cli](https://github.com/crazywhalecc/static-php-cli) and organize them into Github Releases. No fumbling with dependencies, no builds required.
 
 ## What's in the box?
 
