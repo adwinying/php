@@ -79,7 +79,6 @@ jobs:
         with:
           tag_name: "v${{ inputs.version }}"
           draft: false
-          overwrite_files: true
           files: downloads/**
           body: |
             # PHP v${{ github.event.inputs.version }}
