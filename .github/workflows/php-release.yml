@@ -25,14 +25,14 @@ jobs:
           # Create directory for downloads
           mkdir -p downloads
 
-          # Fetch the directory listing and find matching tarballs
-          curl -sS https://dl.static-php.dev/static-php-cli/bulk/ | \
-            grep -oP "href='\K[^']*" | \
-            { grep -E "php-${VERSION}-cli-(.+)\.tar\.gz" >> matching_filepaths.txt || true; }
+          # Fetch file listings using JSON API and find matching tarballs
+          curl -sS "https://dl.static-php.dev/static-php-cli/bulk/?format=json" | \
+            jq -r ".[] | select(.name | test(\"php-${VERSION}-cli\")) | .full_path" \
+            >> matching_filepaths.txt
 
-          curl -sS https://dl.static-php.dev/static-php-cli/windows/spc-max/ | \
-            grep -oP "href='\K[^']*" | \
-            { grep -E "php-${VERSION}-cli-(.+)\.zip" >> matching_filepaths.txt || true; }
+          curl -sS "https://dl.static-php.dev/static-php-cli/windows/spc-max/?format=json" | \
+            jq -r ".[] | select(.name | test(\"php-${VERSION}-cli\")) | .full_path" \
+            >> matching_filepaths.txt
 
           # exit if matching_filepaths.txt is empty
           if [ ! -s matching_filepaths.txt ]; then

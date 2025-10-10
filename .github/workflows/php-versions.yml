@@ -17,25 +17,25 @@ jobs:
       - name: Fetch and process PHP CLI tarballs
         id: filter-versions
         run: |
-          echo "Fetching tarball list from static-php.dev..."
+          echo "Fetching tarball list from static-php.dev JSON API..."
 
-          # Fetch the directory listing
-          curl -sS https://dl.static-php.dev/static-php-cli/bulk/ | \
-          # Filter for PHP CLI tarball pattern
-          grep -E 'php-([0-9]+\.[0-9]+\.[0-9]+)-cli-(.+)\.tar\.gz' | \
-          # Loop over each line
-          while read -r line; do
-            # Extract version number and date using sed
-            version=$(echo "$line" | sed -E 's/.+php-([0-9]+\.[0-9]+\.[0-9]+)-cli-.*\.tar\.gz.+/\1/')
-            date_str=$(echo "$line" | sed -E 's/.+([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}).+/\1/')
-
+          # Fetch the JSON data and filter for PHP CLI tarballs
+          curl -sS "https://dl.static-php.dev/static-php-cli/bulk/?format=json" | \
+          # Use jq to filter and process JSON data
+          jq -r '
+            .[] | 
+            select(.is_dir == false and (.name | test("php-[0-9]+\\.[0-9]+\\.[0-9]+-cli-.+\\.tar\\.gz"))) |
+            {
+              name: .name,
+              version: (.name | capture("php-(?<version>[0-9]+\\.[0-9]+\\.[0-9]+)-cli-") | .version),
+              last_modified: .last_modified
+            } |
             # Check if last modified date is within 2 days
-            date_unix=$(date -d "$date_str" "+%s")
-            two_days_ago=$(date -d "-2 days" "+%s")
-            if [ $date_unix -gt $two_days_ago ]; then
-              echo "$version"
-            fi
-          done | \
+            select(
+              ((.last_modified | strptime("%Y-%m-%d %H:%M:%S") | mktime) > (now - (2 * 24 * 60 * 60)))
+            ) |
+            .version
+          ' | \
           # Sort unique versions and remove duplicates
           sort -u > php_versions.txt
 
