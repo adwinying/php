@@ -26,13 +26,14 @@ jobs:
           mkdir -p downloads
 
           # Fetch file listings using JSON API and find matching tarballs
-          curl -sS "https://dl.static-php.dev/static-php-cli/bulk/?format=json" | \
+          # Use --fail to return non-zero exit code on HTTP errors (4xx/5xx)
+          curl -sSf "https://dl.static-php.dev/static-php-cli/bulk/?format=json" | \
             jq -r ".[] | select(.name | test(\"php-${VERSION}-cli\")) | .full_path" \
-            >> matching_filepaths.txt
+            >> matching_filepaths.txt || echo "Warning: bulk/ endpoint failed or returned no matches"
 
-          curl -sS "https://dl.static-php.dev/static-php-cli/windows/spc-max/?format=json" | \
+          curl -sSf "https://dl.static-php.dev/static-php-cli/windows/spc-max/?format=json" | \
             jq -r ".[] | select(.name | test(\"php-${VERSION}-cli\")) | .full_path" \
-            >> matching_filepaths.txt
+            >> matching_filepaths.txt || echo "Warning: windows/spc-max/ endpoint failed or returned no matches"
 
           # exit if matching_filepaths.txt is empty
           if [ ! -s matching_filepaths.txt ]; then
@@ -43,11 +44,31 @@ jobs:
           echo "Found matching file paths:"
           cat matching_filepaths.txt
 
-          # Download and rename each file
+          # Download, validate, and rename each file
           while read -r filepath; do
             filename=$(basename "$filepath")
             echo "Downloading: $filename"
-            curl -L -o "downloads/$filename" "https://dl.static-php.dev/$filepath"
+            curl -fL -o "downloads/$filename" "https://dl.static-php.dev${filepath}"
+
+            # Validate the downloaded file is a real archive, not an error page
+            filetype=$(file -b "downloads/$filename")
+            if [[ "$filename" == *.tar.gz ]]; then
+              if ! echo "$filetype" | grep -q 'gzip compressed'; then
+                echo "::error::Downloaded file is not a valid gzip archive: $filename"
+                echo "  Expected: gzip compressed data"
+                echo "  Got: $filetype"
+                echo "  This likely means the upstream URL returned an error page."
+                exit 1
+              fi
+            elif [[ "$filename" == *.zip ]]; then
+              if ! echo "$filetype" | grep -q 'Zip archive'; then
+                echo "::error::Downloaded file is not a valid zip archive: $filename"
+                echo "  Expected: Zip archive data"
+                echo "  Got: $filetype"
+                echo "  This likely means the upstream URL returned an error page."
+                exit 1
+              fi
+            fi
 
             # Extract architecture and file extension for both .tar.gz and .zip files
             if [[ "$filename" =~ php-${VERSION}-cli-(.+)\.tar\.gz$ ]]; then
