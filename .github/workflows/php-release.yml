@@ -47,7 +47,7 @@ jobs:
           while read -r filepath; do
             filename=$(basename "$filepath")
             echo "Downloading: $filename"
-            curl -L -o "downloads/$filename" "https://dl.static-php.dev/$filepath"
+            curl -L -o "downloads/$filename" "https://dl.static-php.dev$filepath"
 
             # Extract architecture and file extension for both .tar.gz and .zip files
             if [[ "$filename" =~ php-${VERSION}-cli-(.+)\.tar\.gz$ ]]; then
